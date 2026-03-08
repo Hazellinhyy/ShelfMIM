@@ -1,0 +1,86 @@
+experiment:
+  name: mask2former_finetune_d2s
+  output_dir: outputs/finetune/d2s_gpu
+  seeds:
+  - 0
+  - 1
+  - 2
+  device: cuda
+paths:
+  pretrained_backbone_ckpt: outputs/pretrain/d2s/best.pth
+  mask2former_base_config: third_party/mmdetection-v3.3.0/mmdetection-3.3.0/configs/mask2former/mask2former_r50_8xb2-lsj-50e_coco.py
+data:
+  dataset: mvtec_d2s
+  root: /root/projects/ShelfMIM/dataset/mvtec_d2s/OpenDataLab__MVTec_D2S
+  images_root: ${data.root}/raw/images
+  ann_root: ${data.root}/raw/annotations
+  splits:
+    train:
+      image_dir: ${data.images_root}
+      ann_file: ${data.ann_root}/D2S_training.json
+    val:
+      image_dir: ${data.images_root}
+      ann_file: ${data.ann_root}/D2S_validation.json
+    test:
+      image_dir: ${data.images_root}
+      ann_file: ${data.ann_root}/D2S_test_info.json
+input:
+  resize:
+    keep_aspect_ratio: true
+    short_side: 512
+    long_side_max: 1024
+    interpolation: bilinear
+  pad:
+    enabled: true
+    pad_right_bottom_only: true
+    value: 0
+    size_divisor: 16
+  normalize:
+    mean:
+    - 0.485
+    - 0.456
+    - 0.406
+    std:
+    - 0.229
+    - 0.224
+    - 0.225
+model:
+  name: mask2former
+  backbone:
+    name: vit_base_patch16
+    init_from: ssl_pretrained
+    freeze_layernorm: false
+    lr_multiplier: 0.1
+train:
+  epochs: 20
+  batch_size_total: 1
+  num_workers: 4
+  amp:
+    enabled: true
+    dtype: fp16
+  eval_interval_epochs: 1
+  checkpoint:
+    select_on: val_metric
+    save_last: true
+    save_best_metric: coco/segm_mAP
+    save_best_rule: greater
+    max_keep_ckpts: 1
+optimizer:
+  name: adamw
+  base_lr: 0.0001
+  weight_decay: 0.05
+scheduler:
+  name: cosine_decay
+  warmup_epochs: 1
+  min_lr: 0.0
+inference:
+  score_threshold: 0.05
+  max_instances_per_image: 100
+  other_settings: mask2former_default
+metrics:
+  list:
+  - dice
+  - iou
+  - asd
+  - hd95
+  report_split: test
